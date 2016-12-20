@@ -1,4 +1,5 @@
 #include "Arduino.h"
+#include <TimerOne.h>
 #include "thermistortables.h"
 
 #define VERSION_STRING    "V0.1"
@@ -88,6 +89,33 @@
 #define TEMP_1_PIN         14   // ANALOG NUMBERING
 #define TEMP_2_PIN         13   // ANALOG NUMBERING
 
+// Motor steps per revolution. Most steppers are 200 steps or 1.8 degrees/step
+#define MOTOR_STEPS 200
+
+// Since microstepping is set externally, make sure this matches the selected mode
+// 1=full step, 2=half step etc.
+#define MICROSTEPS 16
+
+// steps / rev
+#define STEPS_REV MOTOR_STEPS * MICROSTEPS
+
+
+#define MAX_SPEED  75
+
+//interrupt period in uS
+#define INT_PERIOD  10
+
+bool dirFlag;
+bool running;
+unsigned int speed_ticks;
+unsigned int tick_count;
+unsigned long tmr1_clock;
+
+#define DIR_DELAY 100000
+
+// function prototypes
+void timerIsr() ;
+
 void setup() {
 
   pinMode(TEMP_0_PIN  , INPUT);
@@ -119,17 +147,30 @@ void setup() {
   pinMode(Q_DIR_PIN    , OUTPUT);
   pinMode(Q_ENABLE_PIN    , OUTPUT);
 
-   digitalWrite(X_ENABLE_PIN    , LOW);
-    digitalWrite(Y_ENABLE_PIN    , LOW);
-    digitalWrite(Z_ENABLE_PIN    , LOW);
-    digitalWrite(E_ENABLE_PIN    , LOW);
-    digitalWrite(Q_ENABLE_PIN    , LOW);
-    Serial.begin(115200);
-    Serial.println("Hello! RAMPS test code here :D ");
-    Serial.println(VERSION_STRING);
-    Serial.print("Enter to continue... ");
-    while(Serial.available() == 0) { }
-    Serial.read();
+  // make sure all motors off
+  digitalWrite(X_ENABLE_PIN    , HIGH);
+  digitalWrite(Y_ENABLE_PIN    , HIGH);
+  digitalWrite(Z_ENABLE_PIN    , HIGH);
+  digitalWrite(E_ENABLE_PIN    , HIGH);
+  digitalWrite(Q_ENABLE_PIN    , HIGH);
+
+  // Timer stuffs http://www.lucadentella.it/en/2013/05/30/allegro-a4988-e-arduino-3/
+  Timer1.initialize(INT_PERIOD); // setup for 10uS interrupts
+  Timer1.attachInterrupt(timerIsr); // attach isr function
+
+   // initial values
+  dirFlag = true;
+  running = true;
+  tick_count = 0;
+  speed_ticks = 75;
+
+  Serial.begin(115200);
+  Serial.println("Hello! RAMPS test code here :D ");
+  Serial.println(VERSION_STRING);
+  Serial.println("Enter to continue... ");
+  Serial.println(" ");
+  while(Serial.available() == 0) { }
+  Serial.read();
 }
 
 
@@ -172,61 +213,119 @@ float analog2temp(int raw, uint8_t e) {
 
 unsigned long prevMillis;
 
+  char serData = 0;
+
 
 // Main program loop entry point
 void loop () {
 
-// Testing Motors:
+  // Testing Motors:
   Serial.print("Testing X Motor: ");
+  digitalWrite(X_ENABLE_PIN    , LOW); // turn X on
+  Serial.println("Working? (y/n)");
+  while(serData != 'y' && serData != 'n' && serData != 'Y' && serData != 'N')
+  {if (Serial.available()) {serData = (char)Serial.read();}}
+  serData = 0;
+  digitalWrite(X_ENABLE_PIN    , HIGH); // turn X off
 
+  Serial.print("Testing Y Motor: ");
+  digitalWrite(Y_ENABLE_PIN    , LOW); // turn Y on
+  Serial.println("Working? (y/n)");
+  while(serData != 'y' && serData != 'n' && serData != 'Y' && serData != 'N')
+  {if (Serial.available()) {serData = (char)Serial.read();}}
+  serData = 0;
+  digitalWrite(Y_ENABLE_PIN    , HIGH); // turn Y off
 
-  while(Serial.available() == 0) { }
-  Serial.read();
+  Serial.print("Testing Z Motor: ");
+  digitalWrite(Z_ENABLE_PIN    , LOW); // turn Z on
+  Serial.println("Working? (y/n)");
+  while(serData != 'y' && serData != 'n' && serData != 'Y' && serData != 'N')
+  {if (Serial.available()) {serData = (char)Serial.read();}}
+  serData = 0;
+  digitalWrite(Z_ENABLE_PIN    , HIGH); // turn Z off
 
-  if (millis() %1000 <500)
-    digitalWrite(LED_PIN, HIGH);
-  else
-   digitalWrite(LED_PIN, LOW);
+  Serial.print("Testing E Motor: ");
+  digitalWrite(E_ENABLE_PIN    , LOW); // turn E on
+  Serial.println("Working? (y/n)");
+  while(serData != 'y' && serData != 'n' && serData != 'Y' && serData != 'N')
+  {if (Serial.available())serData = (char)Serial.read();}
+  serData = 0;
+  digitalWrite(E_ENABLE_PIN    , HIGH); // turn E off
 
-  if (millis() %1000 <300) {
-    digitalWrite(HEATER_0_PIN, HIGH);
-    digitalWrite(HEATER_1_PIN, LOW);
-    digitalWrite(FAN_PIN, LOW);
-  } else if (millis() %1000 <600) {
-    digitalWrite(HEATER_0_PIN, LOW);
-    digitalWrite(HEATER_1_PIN, HIGH);
-    digitalWrite(FAN_PIN, LOW);
-  } else  {
-    digitalWrite(HEATER_0_PIN, LOW);
-    digitalWrite(HEATER_1_PIN, LOW);
-    digitalWrite(FAN_PIN, HIGH);
+  //Test Heaters
+  Serial.print("Testing Hotend: ");
+  digitalWrite(HEATER_0_PIN, HIGH); // turn Hotend on
+  Serial.println("Working? (y/n)");
+  while(serData != 'y' && serData != 'n' && serData != 'Y' && serData != 'N'){
+    if (Serial.available())serData = (char)Serial.read();
+    if (millis() -prevMillis >500){
+      prevMillis=millis();
+      int t = analogRead( TEMP_0_PIN);
+      Serial.print("T0 ");
+      Serial.print(t);
+      Serial.print("/");
+      Serial.println(analog2temp(1024 - t,0),0);
+    }
   }
+  serData = 0;
+  digitalWrite(HEATER_0_PIN, LOW); // turn Hotend off
 
-  if (millis() %2000 <1000) {
-    digitalWrite(X_DIR_PIN    , HIGH);
-    digitalWrite(Y_DIR_PIN    , HIGH);
-    digitalWrite(Z_DIR_PIN    , HIGH);
-    digitalWrite(E_DIR_PIN    , HIGH);
-    digitalWrite(Q_DIR_PIN    , HIGH);
-  }
-  else {
-    digitalWrite(X_DIR_PIN    , LOW);
-    digitalWrite(Y_DIR_PIN    , LOW);
-    digitalWrite(Z_DIR_PIN    , LOW);
-    digitalWrite(E_DIR_PIN    , LOW);
-    digitalWrite(Q_DIR_PIN    , LOW);
-  }
+  // if (millis() %1000 <300) {
+  //   digitalWrite(HEATER_0_PIN, HIGH);
+  //   digitalWrite(HEATER_1_PIN, LOW);
+  //   digitalWrite(FAN_PIN, LOW);
+  // } else if (millis() %1000 <600) {
+  //   digitalWrite(HEATER_0_PIN, LOW);
+  //   digitalWrite(HEATER_1_PIN, HIGH);
+  //   digitalWrite(FAN_PIN, LOW);
+  // } else  {
+  //   digitalWrite(HEATER_0_PIN, LOW);
+  //   digitalWrite(HEATER_1_PIN, LOW);
+  //   digitalWrite(FAN_PIN, HIGH);
+  // }
 
 
+
+    // if (millis() -prevMillis >500){
+    // prevMillis=millis();
+    // int t = analogRead( TEMP_0_PIN);
+    // Serial.print("T0 ");
+    // Serial.print(t);
+    // Serial.print("/");
+    // Serial.print(analog2temp(1024 - t,0),0);
+    //
+    // Serial.print(" T1 ");
+    // t = analogRead( TEMP_1_PIN);
+    // Serial.print(t);
+    // Serial.print("/");
+    // Serial.print(analog2temp(1024 - t,1),0);
+    //
+    // Serial.print(" T2 ");
+    // t = analogRead( TEMP_2_PIN);
+    // Serial.print(t);
+    // Serial.print("/");
+    // Serial.println(analog2temp(1024 - t,2),0);
+
+  //}
+
+}
+
+// ISR to do stepper moves
+void timerIsr() {
+
+  // inc the step counter
+  tick_count++;
+  tmr1_clock++;
+
+  // if we have hit the limit and we should be running
+  if((tick_count >= speed_ticks) && running) {
+
+    // make a step
     digitalWrite(X_STEP_PIN    , HIGH);
     digitalWrite(Y_STEP_PIN    , HIGH);
     digitalWrite(Z_STEP_PIN    , HIGH);
     digitalWrite(E_STEP_PIN    , HIGH);
     digitalWrite(Q_STEP_PIN    , HIGH);
-  delay(1);
-
-
-
 
     digitalWrite(X_STEP_PIN    , LOW);
     digitalWrite(Y_STEP_PIN    , LOW);
@@ -234,26 +333,30 @@ void loop () {
     digitalWrite(E_STEP_PIN    , LOW);
     digitalWrite(Q_STEP_PIN    , LOW);
 
-    if (millis() -prevMillis >500){
-    prevMillis=millis();
-    int t = analogRead( TEMP_0_PIN);
-    Serial.print("T0 ");
-    Serial.print(t);
-    Serial.print("/");
-    Serial.print(analog2temp(1024 - t,0),0);
+    // reset tick counter
+    tick_count = 0;
+  }
 
-    Serial.print(" T1 ");
-    t = analogRead( TEMP_1_PIN);
-    Serial.print(t);
-    Serial.print("/");
-    Serial.print(analog2temp(1024 - t,1),0);
-
-    Serial.print(" T2 ");
-    t = analogRead( TEMP_2_PIN);
-    Serial.print(t);
-    Serial.print("/");
-    Serial.println(analog2temp(1024 - t,2),0);
-
+  //flip direction
+  if (tmr1_clock >= DIR_DELAY) {
+    tmr1_clock = 0;
+    if(dirFlag){
+      dirFlag = false;
+      digitalWrite(X_DIR_PIN    , HIGH);
+      digitalWrite(Y_DIR_PIN    , HIGH);
+      digitalWrite(Z_DIR_PIN    , HIGH);
+      digitalWrite(E_DIR_PIN    , HIGH);
+      digitalWrite(Q_DIR_PIN    , HIGH);
+      //digitalWrite(LED_PIN      , HIGH);
+    }else {
+      dirFlag = true;
+      digitalWrite(X_DIR_PIN    , LOW);
+      digitalWrite(Y_DIR_PIN    , LOW);
+      digitalWrite(Z_DIR_PIN    , LOW);
+      digitalWrite(E_DIR_PIN    , LOW);
+      digitalWrite(Q_DIR_PIN    , LOW);
+      //digitalWrite(LED_PIN      , LOW);
+    }
   }
 
 }
