@@ -1,6 +1,7 @@
 #include "Arduino.h"
 #include <TimerOne.h>
 #include "thermistortables.h"
+#include "gfx_lcd_ctrlr.h"
 
 #define VERSION_STRING    "V0.1"
 
@@ -174,13 +175,16 @@ void setup() {
   tick_count = 0;
   speed_ticks = MAX_SPEED;
 
+  lcd_init();
+  _delay_ms(1000);	// wait 1sec to display the splash screen
+
   Serial.begin(115200);
   Serial.println("Hello! RAMPS test code here :D ");
   Serial.println(VERSION_STRING);
-  // Serial.println("Enter to continue... ");
-  // Serial.println(" ");
-  // while(Serial.available() == 0) { }
-  // Serial.read();
+  Serial.println("Enter to continue... ");
+  Serial.println(" ");
+  while(Serial.available() == 0) { }
+  Serial.read();
 }
 
 
@@ -348,8 +352,28 @@ void loop () {
     while(digitalRead(Z_MIN_PIN)){ }
     Serial.println("Z Endstop Working");
   }
+  Serial.flush();
 
-  
+  // Graphical LCD test
+  Serial.println("Test GFX LCD? (y/n): ");
+  while(serData != 'y' && serData != 'n' && serData != 'Y' && serData != 'N')
+  {if (Serial.available())serData = (char)Serial.read();}
+  if(serData == 'y' || serData == 'Y'){ // run gfx test
+    serData = 0;
+    lcd_run_test();
+    Serial.println("Working? (y/n)");
+    while(serData != 'y' && serData != 'n' && serData != 'Y' && serData != 'N')
+    {if (Serial.available())serData = (char)Serial.read();}
+    serData = 0;
+    lcd_init();
+  }else{
+    Serial.println("LCD Test Skipped...");
+  }
+
+  Serial.println("Test Complete! :D ");
+
+  // just in case anything is hanging around....
+  Serial.flush();
 }
 
 // ISR to do stepper moves
