@@ -100,10 +100,10 @@
 #define STEPS_REV MOTOR_STEPS * MICROSTEPS
 
 
-#define MAX_SPEED  75
+#define MAX_SPEED  8
 
 //interrupt period in uS
-#define INT_PERIOD  10
+#define INT_PERIOD  100
 
 bool dirFlag;
 bool running;
@@ -111,41 +111,51 @@ unsigned int speed_ticks;
 unsigned int tick_count;
 unsigned long tmr1_clock;
 
-#define DIR_DELAY 100000
+#define DIR_DELAY 10000
 
 // function prototypes
 void timerIsr() ;
 
 void setup() {
 
+  // Temp Inputs
   pinMode(TEMP_0_PIN  , INPUT);
   pinMode(TEMP_1_PIN  , INPUT);
   pinMode(TEMP_2_PIN  , INPUT);
 
-  pinMode(FAN_PIN , OUTPUT);
-  pinMode(HEATER_0_PIN , OUTPUT);
-  pinMode(HEATER_1_PIN , OUTPUT);
-  pinMode(LED_PIN  , OUTPUT);
+  //Endstops
+  pinMode(X_MIN_PIN   , INPUT_PULLUP);
+  pinMode(X_MAX_PIN   , INPUT_PULLUP);
+  pinMode(Y_MIN_PIN   , INPUT_PULLUP);
+  pinMode(Y_MAX_PIN   , INPUT_PULLUP);
+  pinMode(Z_MIN_PIN   , INPUT_PULLUP);
+  pinMode(Z_MAX_PIN   , INPUT_PULLUP);
 
-  pinMode(X_STEP_PIN  , OUTPUT);
-  pinMode(X_DIR_PIN    , OUTPUT);
-  pinMode(X_ENABLE_PIN    , OUTPUT);
+  // Output pins
+  pinMode(FAN_PIN       , OUTPUT);
+  pinMode(HEATER_0_PIN  , OUTPUT);
+  pinMode(HEATER_1_PIN  , OUTPUT);
+  pinMode(LED_PIN       , OUTPUT);
 
-  pinMode(Y_STEP_PIN  , OUTPUT);
-  pinMode(Y_DIR_PIN    , OUTPUT);
-  pinMode(Y_ENABLE_PIN    , OUTPUT);
+  pinMode(X_STEP_PIN    , OUTPUT);
+  pinMode(X_DIR_PIN     , OUTPUT);
+  pinMode(X_ENABLE_PIN  , OUTPUT);
 
-  pinMode(Z_STEP_PIN  , OUTPUT);
-  pinMode(Z_DIR_PIN    , OUTPUT);
-  pinMode(Z_ENABLE_PIN    , OUTPUT);
+  pinMode(Y_STEP_PIN    , OUTPUT);
+  pinMode(Y_DIR_PIN     , OUTPUT);
+  pinMode(Y_ENABLE_PIN  , OUTPUT);
 
-  pinMode(E_STEP_PIN  , OUTPUT);
-  pinMode(E_DIR_PIN    , OUTPUT);
-  pinMode(E_ENABLE_PIN    , OUTPUT);
+  pinMode(Z_STEP_PIN    , OUTPUT);
+  pinMode(Z_DIR_PIN     , OUTPUT);
+  pinMode(Z_ENABLE_PIN  , OUTPUT);
 
-  pinMode(Q_STEP_PIN  , OUTPUT);
-  pinMode(Q_DIR_PIN    , OUTPUT);
-  pinMode(Q_ENABLE_PIN    , OUTPUT);
+  pinMode(E_STEP_PIN    , OUTPUT);
+  pinMode(E_DIR_PIN     , OUTPUT);
+  pinMode(E_ENABLE_PIN  , OUTPUT);
+
+  pinMode(Q_STEP_PIN    , OUTPUT);
+  pinMode(Q_DIR_PIN     , OUTPUT);
+  pinMode(Q_ENABLE_PIN  , OUTPUT);
 
   // make sure all motors off
   digitalWrite(X_ENABLE_PIN    , HIGH);
@@ -162,15 +172,15 @@ void setup() {
   dirFlag = true;
   running = true;
   tick_count = 0;
-  speed_ticks = 75;
+  speed_ticks = MAX_SPEED;
 
   Serial.begin(115200);
   Serial.println("Hello! RAMPS test code here :D ");
   Serial.println(VERSION_STRING);
-  Serial.println("Enter to continue... ");
-  Serial.println(" ");
-  while(Serial.available() == 0) { }
-  Serial.read();
+  // Serial.println("Enter to continue... ");
+  // Serial.println(" ");
+  // while(Serial.available() == 0) { }
+  // Serial.read();
 }
 
 
@@ -261,7 +271,7 @@ void loop () {
     if (millis() -prevMillis >500){
       prevMillis=millis();
       int t = analogRead( TEMP_0_PIN);
-      Serial.print("T0 ");
+      Serial.print("THot ");
       Serial.print(t);
       Serial.print("/");
       Serial.println(analog2temp(1024 - t,0),0);
@@ -270,44 +280,76 @@ void loop () {
   serData = 0;
   digitalWrite(HEATER_0_PIN, LOW); // turn Hotend off
 
-  // if (millis() %1000 <300) {
-  //   digitalWrite(HEATER_0_PIN, HIGH);
-  //   digitalWrite(HEATER_1_PIN, LOW);
-  //   digitalWrite(FAN_PIN, LOW);
-  // } else if (millis() %1000 <600) {
-  //   digitalWrite(HEATER_0_PIN, LOW);
-  //   digitalWrite(HEATER_1_PIN, HIGH);
-  //   digitalWrite(FAN_PIN, LOW);
-  // } else  {
-  //   digitalWrite(HEATER_0_PIN, LOW);
-  //   digitalWrite(HEATER_1_PIN, LOW);
-  //   digitalWrite(FAN_PIN, HIGH);
-  // }
+  Serial.print("Testing Bed: ");
+  digitalWrite(HEATER_1_PIN, HIGH); // turn Bed on
+  Serial.println("Working? (y/n)");
+  while(serData != 'y' && serData != 'n' && serData != 'Y' && serData != 'N'){
+    if (Serial.available())serData = (char)Serial.read();
+    if (millis() -prevMillis >500){
+      prevMillis=millis();
+      int t = analogRead( TEMP_1_PIN);
+      Serial.print("TBed ");
+      Serial.print(t);
+      Serial.print("/");
+      Serial.println(analog2temp(1024 - t,0),0);
+    }
+  }
+  serData = 0;
+  digitalWrite(HEATER_1_PIN, LOW); // turn Bed off
 
+  Serial.print("Testing Fan: ");
+  digitalWrite(FAN_PIN, HIGH); // turn Fan on
+  Serial.println("Working? (y/n)");
+  while(serData != 'y' && serData != 'n' && serData != 'Y' && serData != 'N'){
+    if (Serial.available())serData = (char)Serial.read();
+    if (millis() -prevMillis >500){
+      prevMillis=millis();
+      int t = analogRead( TEMP_2_PIN);
+      Serial.print("T2 ");
+      Serial.print(t);
+      Serial.print("/");
+      Serial.println(analog2temp(1024 - t,0),0);
+    }
+  }
+  serData = 0;
+  digitalWrite(FAN_PIN, LOW); // turn Fan off
 
+  // Testing Endstops
 
-    // if (millis() -prevMillis >500){
-    // prevMillis=millis();
-    // int t = analogRead( TEMP_0_PIN);
-    // Serial.print("T0 ");
-    // Serial.print(t);
-    // Serial.print("/");
-    // Serial.print(analog2temp(1024 - t,0),0);
-    //
-    // Serial.print(" T1 ");
-    // t = analogRead( TEMP_1_PIN);
-    // Serial.print(t);
-    // Serial.print("/");
-    // Serial.print(analog2temp(1024 - t,1),0);
-    //
-    // Serial.print(" T2 ");
-    // t = analogRead( TEMP_2_PIN);
-    // Serial.print(t);
-    // Serial.print("/");
-    // Serial.println(analog2temp(1024 - t,2),0);
+  if(digitalRead(X_MIN_PIN)){
+    Serial.println("Error X Endstop activated!");
+  }else{
+    Serial.print("Testing X Endstop: ");
+    Serial.println("Please press X Endstop");
+    while(!digitalRead(X_MIN_PIN)){ }
+    Serial.println("Please relase X Endstop");
+    while(digitalRead(X_MIN_PIN)){ }
+    Serial.println("X Endstop Working");
+  }
 
-  //}
+  if(digitalRead(Y_MIN_PIN)){
+    Serial.println("Error Y Endstop activated!");
+  }else{
+    Serial.print("Testing Y Endstop: ");
+    Serial.println("Please press Y Endstop");
+    while(!digitalRead(Y_MIN_PIN)){ }
+    Serial.println("Please relase Y Endstop");
+    while(digitalRead(Y_MIN_PIN)){ }
+    Serial.println("Y Endstop Working");
+  }
 
+  if(digitalRead(Z_MIN_PIN)){
+    Serial.println("Error Z Endstop activated!");
+  }else{
+    Serial.print("Testing Z Endstop: ");
+    Serial.println("Please press Z Endstop");
+    while(!digitalRead(Z_MIN_PIN)){ }
+    Serial.println("Please relase Z Endstop");
+    while(digitalRead(Z_MIN_PIN)){ }
+    Serial.println("Z Endstop Working");
+  }
+
+  
 }
 
 // ISR to do stepper moves
