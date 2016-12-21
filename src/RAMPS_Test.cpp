@@ -3,7 +3,7 @@
 #include "thermistortables.h"
 #include "gfx_lcd_ctrlr.h"
 
-#define VERSION_STRING    "V0.1"
+#define VERSION_STRING    "V0.2"
 
 #define X_STEP_PIN         54
 #define X_DIR_PIN          55
@@ -86,9 +86,9 @@
 #define HEATER_0_PIN       10
 
 #define HEATER_1_PIN       8
-#define TEMP_0_PIN         15   // ANALOG NUMBERING
+#define TEMP_0_PIN         13   // ANALOG NUMBERING
 #define TEMP_1_PIN         14   // ANALOG NUMBERING
-#define TEMP_2_PIN         13   // ANALOG NUMBERING
+#define TEMP_2_PIN         15   // ANALOG NUMBERING
 
 // Motor steps per revolution. Most steppers are 200 steps or 1.8 degrees/step
 #define MOTOR_STEPS 200
